@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # OLLAMA service for AI model serving
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-stock-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Main application
+  ai-stock-analyzer:
+    build: .
+    container_name: ai-stock-app
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2
+      - DATABASE_URL=sqlite:///./data/stocks.db
+      - LOG_LEVEL=INFO
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Optional: Database service (if using PostgreSQL)
+  # postgres:
+  #   image: postgres:13
+  #   container_name: ai-stock-db
+  #   environment:
+  #     POSTGRES_DB: stocks
+  #     POSTGRES_USER: stock_user
+  #     POSTGRES_PASSWORD: stock_password
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U stock_user -d stocks"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+
+volumes:
+  ollama_data:
+  # postgres_data:
